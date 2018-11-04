@@ -74,34 +74,15 @@ resource "aws_route_table_association" "sub3-rt" {
   subnet_id = "${aws_subnet.subnets.2.id}"
   route_table_id = "${aws_route_table.pubsub.id}"
 }
-#----------------------------------------------------------------------------------------------------------------------
-# DEPLOY Provides an Elastic network interface (ENI) resource. ???
-# ---------------------------------------------------------------------------------------------------------------------
-resource "aws_network_interface" "net" {
-  subnet_id = "${aws_subnet.subnets.0.id}"
- # subnets = ["${aws_subnet.subnets.0.id}","${aws_subnet.subnets.1.id}","${aws_subnet.subnets.2.id}"]
-  #private_ips = ["190.169.1.0"]
-  tags {
-    Name = "primary_network_interface"
-  }
-}
+
 # ---------------------------------------------------------------------------------------------------------------------
 # CREATE LOAD BALANCER 
 # ---------------------------------------------------------------------------------------------------------------------
 resource "aws_elb" "app" {
   name               =   "app-elb"
- # availability_zones =  ["${data.aws_availability_zones.avzs.names}"]
- #  subnets         =  ["${aws_subnet.subnets.0.id}","${aws_subnet.subnets.1.id}","${aws_subnet.subnets.2.id}"]
   subnets         =  ["${aws_subnet.subnets.*.id}"]
   security_groups =   ["${aws_security_group.elb.id}"]
 
-
-
-#  access_logs {
-#   bucket        = "foo"
-#   bucket_prefix = "bar"
-#   interval      = 60
-# }
 
   listener {
     instance_port     = "${var.instance_port}"
@@ -130,22 +111,8 @@ resource "aws_elb" "app" {
     Name = "Http-Elb"
   }
 }
-/*
 # ---------------------------------------------------------------------------------------------------------------------
-# CREATE S3 Bucket
-# ---------------------------------------------------------------------------------------------------------------------
- resource "aws_s3_bucket" "b" {
-  bucket = "amirco99-bucket"
-  acl    = "public-read-write"
-
-  tags {
-    Name        = "My bucket"
-   Environment = "Dev"
-  }
-}
-*/
-# ---------------------------------------------------------------------------------------------------------------------
-# Uploading index.html TO S3
+# UPLOADING index.html TO S3
 # ---------------------------------------------------------------------------------------------------------------------
 resource "aws_s3_bucket_object" "object" {
   bucket = "amirco99-bucket"
@@ -206,7 +173,7 @@ resource "aws_instance" "web3" {
     Name = "web3-public"
   }
 } 
-
+/*
 resource "aws_spot_instance_request" "web4" {
  ami           = "${data.aws_ami.ubuntu.id}"
  spot_price    = "0.33"
@@ -221,11 +188,10 @@ resource "aws_spot_instance_request" "web4" {
     Name = "Web2-CheapWorker"
  }
 }
+*/
 # ---------------------------------------------------------------------------------------------------------------------
 # CREATE THE USER DATA SCRIPT THAT WILL RUN DURING BOOT ON THE EC2 INSTANCE
 # ---------------------------------------------------------------------------------------------------------------------
-
-
 
 data "template_file" "user_data" {
   template = "${file("${path.module}/user-data/user-data.sh")}"
@@ -244,43 +210,6 @@ data "template_file" "auser_data" {
     instance_port = "${var.instance_port}"
   }
 }
-# ---------------------------------------------------------------------------------------------------------------------
-/*
-resource "aws_instance" "web" {
-  count = "${length(data.aws_availability_zones.avzs.names)}"
-  ami                    = "${data.aws_ami.ubuntu.id}"
-  instance_type          = "t2.micro"
-  user_data              = "${data.template_file.auser_data.rendered}"
-  vpc_security_group_ids =  ["${aws_security_group.instance.id}"]
-  availability_zone      =  "${element(data.aws_availability_zones.avzs.names,count.index)}"
-  subnet_id = "${aws_subnet.subnets.0.id}"
-  associate_public_ip_address = true
- 
-
-   key_name   = "${var.key_name}"
- 
-  tags {
-    Name = "web-${count.index+1}"
-  }
-
-#------------------------------
-
-resource "aws_spot_instance_request" "web2" {
- ami           = "${data.aws_ami.ubuntu.id}"
- spot_price    = "0.03"
- instance_type = "t2.micro"
- user_data              = "${data.template_file.auser_data.rendered}"
- vpc_security_group_ids =  ["${aws_security_group.instance.id}"]
- availability_zone      =  "${element(data.aws_availability_zones.avzs.names,count.index)}"
- subnet_id = "${aws_subnet.subnets.0.id}"
- key_name   = "${var.key_name}"
-
- tags {
-    Name = "Web2-CheapWorker"
- }
-}
-*/
-
 # ---------------------------------------------------------------------------------------------------------------------
 # CREATE AUTOSCALLING GROUP
 # ---------------------------------------------------------------------------------------------------------------------
@@ -305,7 +234,7 @@ resource "aws_autoscaling_group" "from" {
       health_check_type = "ELB"
    #  notification_target_arn =
    #   role_arn          = arn:aws:iam::575261737943:instance-profile/ec2-s3-access-role
-      min_size = 2
+      min_size = 1
       max_size = 6
 tag {
   key = "Name"
