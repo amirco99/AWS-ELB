@@ -1,5 +1,5 @@
 # CreditFi
-Homework assignment
+
 
 The exercise is to create a script that will start a server (spot and non-spot) in AWS.
 
