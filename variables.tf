@@ -42,7 +42,7 @@ variable "instance_port" {
 
 variable "instance_text" {
 	description = "The text the EC2 Instance should return when it gets an HTTP request."
-	default     = "Hi This is  EC2 test Machine"
+	default     = "<html><body><h1>Hello CreditFi User You are Testing my AWS web Site</h1></body<</html>"
 }
 #variable  "avail-zones" {
 #	type = "list"

@@ -1,6 +1,5 @@
 # ---------------------------------------------------------------------------------------------------------------------
-# DEPLOY AN EC2 INSTANCE THAT RUNS A SIMPLE "HELLO, WORLD" WEB SERVER
-# 
+# DEFINE REGION
 # ---------------------------------------------------------------------------------------------------------------------
 
 provider "aws" {
@@ -9,18 +8,19 @@ provider "aws" {
 
 
 #----------------------------------------------------------------------------------------------------------------------
-# DEPLOY main VPC
+# DEPLOY MAIN VPC
 # ---------------------------------------------------------------------------------------------------------------------
 resource  "aws_vpc" "main"  {
   cidr_block  = "${var.vpc_ip}"
   instance_tenancy = "default"
+  enable_dns_hostnames ="true"
   tags {
      Name = "Main"
      Lcation = "Tel-Aviv"
   }
 }
 #----------------------------------------------------------------------------------------------------------------------
-# DEPLOY Subnets in  all AZ in the define Regions
+# DEPLOY SUBNETS FOR ALL AZ IN DEFINED REGION 
 # ---------------------------------------------------------------------------------------------------------------------
 resource  "aws_subnet" "subnets"  {
   count = "${length(data.aws_availability_zones.avzs.names)}"
@@ -32,26 +32,9 @@ resource  "aws_subnet" "subnets"  {
     Location = "Mod-${count.index+1}"
   }
 }
-/*
-resource  "aws_subnet" "sub2"  {
- vpc_id  = "${aws_vpc.main.id}"
- availability_zone =  "${element(data.aws_availability_zones.avzs.names,1)}"
- cidr_block  = "${element(var.subnet_ip,1)}"
- tags {
-    Name = "Subnet-2"
-  }
-}
-resource  "aws_subnet" "sub3"  {
- vpc_id  = "${aws_vpc.main.id}"
- availability_zone =  "${element(data.aws_availability_zones.avzs.names,2)}"
- cidr_block  = "${element(var.subnet_ip,2)}"
- tags {
-    Name = "Subnet-3"
-  }
-}
-*/
+
 #----------------------------------------------------------------------------------------------------------------------
-# Define the internet gateway
+# Define INTERNET GATEWAY 
 # ---------------------------------------------------------------------------------------------------------------------
 resource "aws_internet_gateway" "gw" {
   vpc_id = "${aws_vpc.main.id}"
@@ -61,7 +44,7 @@ resource "aws_internet_gateway" "gw" {
   }
 }
 #----------------------------------------------------------------------------------------------------------------------
-# Define A route table - Allow Public Connection
+# Define A ROUTE TABLE  - (Allow Public Connection)
 # ---------------------------------------------------------------------------------------------------------------------
 resource "aws_route_table" "pubsub" {
   vpc_id = "${aws_vpc.main.id}"
@@ -87,9 +70,12 @@ resource "aws_route_table_association" "sub2-rt" {
   subnet_id = "${aws_subnet.subnets.1.id}"
   route_table_id = "${aws_route_table.pubsub.id}"
 }
-
+resource "aws_route_table_association" "sub3-rt" {
+  subnet_id = "${aws_subnet.subnets.2.id}"
+  route_table_id = "${aws_route_table.pubsub.id}"
+}
 #----------------------------------------------------------------------------------------------------------------------
-# DEPLOY Network Interface  in  all AZ in the define Regions
+# DEPLOY Provides an Elastic network interface (ENI) resource. ???
 # ---------------------------------------------------------------------------------------------------------------------
 resource "aws_network_interface" "net" {
   subnet_id = "${aws_subnet.subnets.0.id}"
@@ -133,7 +119,7 @@ resource "aws_elb" "app" {
     interval            = 30
   }
 
-  instances                   = ["${aws_instance.web1.id}","${aws_instance.web2.id}"]
+  instances                   = ["${aws_instance.web1.id}","${aws_instance.web2.id}","${aws_instance.web3.id}"]
   cross_zone_load_balancing   = true
   idle_timeout                = 400
   connection_draining         = true
@@ -144,6 +130,7 @@ resource "aws_elb" "app" {
     Name = "Http-Elb"
   }
 }
+/*
 # ---------------------------------------------------------------------------------------------------------------------
 # CREATE S3 Bucket
 # ---------------------------------------------------------------------------------------------------------------------
@@ -156,21 +143,19 @@ resource "aws_elb" "app" {
    Environment = "Dev"
   }
 }
+*/
+# ---------------------------------------------------------------------------------------------------------------------
+# Uploading index.html TO S3
+# ---------------------------------------------------------------------------------------------------------------------
+resource "aws_s3_bucket_object" "object" {
+  bucket = "amirco99-bucket"
+  key    = "index.html"
+  source = "/Users/acohan/Documents/terraform/exam/user-data/myindex.html"
+}
 
 # ---------------------------------------------------------------------------------------------------------------------
-# Uploading a file to S3
+# DEPLOY THE EC2 INSTANCES (WEB1-3) 
 # ---------------------------------------------------------------------------------------------------------------------
-#resource "aws_s3_bucket_object" "object" {
- # bucket = "amirco99-bucket"
-  #key    = "myindex.html"
-  #source = "/Users/acohan/Documents/terraform/exam/user-data/myindex.html"
-  #etag   = "${md5(file("${path.module}/user-data/myindex.html"))}"
-#}
-
-# ---------------------------------------------------------------------------------------------------------------------
-# DEPLOY THE EC2 INSTANCE
-# ---------------------------------------------------------------------------------------------------------------------
-
 resource "aws_instance" "web1" {
   ami                    = "${data.aws_ami.ubuntu.id}"
   instance_type          = "t2.micro"
@@ -204,12 +189,13 @@ resource "aws_instance" "web2" {
     Name = "web2-public"
   }
 } 
-/*
+
 resource "aws_instance" "web3" {
   ami                    = "${data.aws_ami.ubuntu.id}"
   instance_type          = "t2.micro"
   user_data              = "${data.template_file.user_data.rendered}"
   vpc_security_group_ids =  ["${aws_security_group.instance.id}"]
+  iam_instance_profile = "${aws_iam_instance_profile.new_profile.name}"
   availability_zone      =  "${element(data.aws_availability_zones.avzs.names,2)}"
   subnet_id = "${aws_subnet.subnets.2.id}"
   associate_public_ip_address = true
@@ -221,11 +207,50 @@ resource "aws_instance" "web3" {
   }
 } 
 
+resource "aws_spot_instance_request" "web4" {
+ ami           = "${data.aws_ami.ubuntu.id}"
+ spot_price    = "0.33"
+ instance_type = "t2.micro"
+ user_data              = "${data.template_file.user_data.rendered}"
+ vpc_security_group_ids =  ["${aws_security_group.instance.id}"]
+ availability_zone      =  "${element(data.aws_availability_zones.avzs.names,count.index)}"
+ subnet_id = "${aws_subnet.subnets.0.id}"
+ key_name   = "${var.key_name}"
+
+ tags {
+    Name = "Web2-CheapWorker"
+ }
+}
+# ---------------------------------------------------------------------------------------------------------------------
+# CREATE THE USER DATA SCRIPT THAT WILL RUN DURING BOOT ON THE EC2 INSTANCE
+# ---------------------------------------------------------------------------------------------------------------------
+
+
+
+data "template_file" "user_data" {
+  template = "${file("${path.module}/user-data/user-data.sh")}"
+
+  vars {
+    instance_text = "${var.instance_text}"
+    instance_port = "${var.instance_port}"
+  }
+}
+
+data "template_file" "auser_data" {
+  template = "${file("${path.module}/user-data/auto_user-data.sh")}"
+
+  vars {
+    instance_text = "${var.instance_text}"
+    instance_port = "${var.instance_port}"
+  }
+}
+# ---------------------------------------------------------------------------------------------------------------------
+/*
 resource "aws_instance" "web" {
   count = "${length(data.aws_availability_zones.avzs.names)}"
   ami                    = "${data.aws_ami.ubuntu.id}"
   instance_type          = "t2.micro"
-  user_data              = "${data.template_file.user_data.rendered}"
+  user_data              = "${data.template_file.auser_data.rendered}"
   vpc_security_group_ids =  ["${aws_security_group.instance.id}"]
   availability_zone      =  "${element(data.aws_availability_zones.avzs.names,count.index)}"
   subnet_id = "${aws_subnet.subnets.0.id}"
@@ -244,56 +269,48 @@ resource "aws_spot_instance_request" "web2" {
  ami           = "${data.aws_ami.ubuntu.id}"
  spot_price    = "0.03"
  instance_type = "t2.micro"
- user_data              = "${data.template_file.user_data.rendered}"
+ user_data              = "${data.template_file.auser_data.rendered}"
  vpc_security_group_ids =  ["${aws_security_group.instance.id}"]
+ availability_zone      =  "${element(data.aws_availability_zones.avzs.names,count.index)}"
+ subnet_id = "${aws_subnet.subnets.0.id}"
  key_name   = "${var.key_name}"
 
  tags {
     Name = "Web2-CheapWorker"
-# }
+ }
 }
 */
-# ---------------------------------------------------------------------------------------------------------------------
-# CREATE THE USER DATA SCRIPT THAT WILL RUN DURING BOOT ON THE EC2 INSTANCE
-# ---------------------------------------------------------------------------------------------------------------------
 
-data "template_file" "user_data" {
-  template = "${file("${path.module}/user-data/user-data.sh")}"
-
-  vars {
-    instance_text = "${var.instance_text}"
-    instance_port = "${var.instance_port}"
-  }
-}
-
-/*
 # ---------------------------------------------------------------------------------------------------------------------
-# CREATE  a launch conguration
+# CREATE AUTOSCALLING GROUP
 # ---------------------------------------------------------------------------------------------------------------------
 resource "aws_launch_configuration" "basis" {
    image_id = "${data.aws_ami.ubuntu.id}"
    instance_type = "t2.micro"
    security_groups = ["${aws_security_group.instance.id}"]
-   user_data              = "${data.template_file.user_data.rendered}"
+   user_data       = "${data.template_file.user_data.rendered}"
+   associate_public_ip_address = true
+   key_name   = "${var.key_name}"
 
-lifecycle { 
+
+lifecycle {
 create_before_destroy = true
-  } 
+  }
 }
-resource "aws_autoscaling_group" "From-3-6" {
+resource "aws_autoscaling_group" "from" {
       launch_configuration = "${aws_launch_configuration.basis.id}"
       availability_zones = ["${data.aws_availability_zones.avzs.names}"]
-    # vpc_zone_identifier = ["${aws_subnet.subnets.0.id}","${aws_subnet.subnets.1.id}","${aws_subnet.subnets.2.id}"]
+      vpc_zone_identifier = ["${aws_subnet.subnets.0.id}","${aws_subnet.subnets.1.id}","${aws_subnet.subnets.2.id}"]
       load_balancers = ["${aws_elb.app.name}"]
       health_check_type = "ELB"
-
-      min_size = 3
+   #  notification_target_arn =
+   #   role_arn          = arn:aws:iam::575261737943:instance-profile/ec2-s3-access-role
+      min_size = 2
       max_size = 6
 tag {
   key = "Name"
-  value = "autoscaling-from-3-to-4" 
+  value = "autoscaling-from-1-to-6"
   propagate_at_launch = true
-  } 
+  }
 }
-*/
 
