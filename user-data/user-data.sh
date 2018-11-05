@@ -1,7 +1,5 @@
 #!/bin/bash
-# This script is meant to be run in the User Data of an EC2 Instance while it's booting. It starts a simple
-# "Hello, World" web server.
-
+# This script is meant to be run in the User Data of an EC2 Instance while it's booting. 
 set -e
 
 # Send the log output from this script to user-data.log, syslog, and the console
@@ -15,9 +13,9 @@ sudo apt-get update
 apt install awscli -y
 aws s3 cp --recursive s3://amirco99-bucket  / --region eu-west-2
 sudo apt-get -y install nginx
-#sudo service nginx start
+sudo service nginx start
 #export HOSTNAME=$(curl -s http://169.254.169.254/latest/metadata/hostname)
 #export $PUBLIC_IPV$=$(curl -s curl http://169.254.169.254/latest/meta-data/public-ipv4)
 #echo Hi from AWS $HOSTNAME, with IP Address: $PUBLIC_IPV > /var/www/html/indexx.nginx.html
-nohup busybox httpd -f -p "${instance_port}" &
+
 
