@@ -13,5 +13,5 @@ echo "${instance_text}" > index.html
 sudo apt-get update
 sudo apt-get -y install nginx
 sudo service nginx start
-nohup busybox httpd -f -p "${instance_port}" &
+#nohup busybox httpd -f -p "${instance_port}" &
 
