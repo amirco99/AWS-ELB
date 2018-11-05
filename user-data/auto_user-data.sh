@@ -1,6 +1,6 @@
 #!/bin/bash
-# This script is meant to be run in the User Data of an EC2 Instance while it's booting. It starts a simple
-# "Hello, World" web server.
+# This script is meant to be run in the User Data of an EC2 Instance while it's booting. 
+
 
 set -e
 
