@@ -1,5 +1,6 @@
 # AWS-ELB
 
+AWS Elastic Load Balancer (ELB) Terraform
 
 Create a terraform script that will start EC2  servers  in AWS.
 
