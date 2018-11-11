@@ -55,6 +55,15 @@ variable "subnet_ip"  {
     type = "list"
     default = ["10.0.1.0/24","10.0.2.0/24","10.0.3.0/24"]
 }
+variable "ebs_optimized" {
+  description = "If true, the launched EC2 instance will be EBS-optimized"
+  default     = false
+}
+variable  "cluster_name" {
+	description = "The port the EC2 Instance should listen on for HTTP requests."
+	default     = "cerditFi"
+}
+
 
 # ---------------------------------------------------------------------------------------------------------------------
 #  REQUIRED DATA

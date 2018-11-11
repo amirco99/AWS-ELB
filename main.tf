@@ -100,7 +100,8 @@ resource "aws_elb" "app" {
     interval            = 30
   }
 
-  instances                   = ["${aws_instance.web1.id}","${aws_instance.web2.id}","${aws_instance.web3.id}"]
+  #instances                   = ["${aws_instance.web1.id}","${aws_instance.web2.id}","${aws_instance.web3.id}"]
+  subnets                     = ["${aws_subnet.subnets.*.id}"]
   cross_zone_load_balancing   = true
   idle_timeout                = 400
   connection_draining         = true
@@ -217,29 +218,62 @@ resource "aws_launch_configuration" "basis" {
    image_id = "${data.aws_ami.ubuntu.id}"
    instance_type = "t2.micro"
    security_groups = ["${aws_security_group.instance.id}"]
-   user_data       = "${data.template_file.user_data.rendered}"
+   user_data       = "${data.template_file.auser_data.rendered}"
    associate_public_ip_address = true
    key_name   = "${var.key_name}"
-
+   ebs_optimized               = "${var.ebs_optimized}"
 
 lifecycle {
 create_before_destroy = true
   }
 }
-resource "aws_autoscaling_group" "from" {
+resource "aws_autoscaling_group" "web-start" {
       launch_configuration = "${aws_launch_configuration.basis.id}"
       availability_zones = ["${data.aws_availability_zones.avzs.names}"]
       vpc_zone_identifier = ["${aws_subnet.subnets.0.id}","${aws_subnet.subnets.1.id}","${aws_subnet.subnets.2.id}"]
       load_balancers = ["${aws_elb.app.name}"]
       health_check_type = "ELB"
    #  notification_target_arn =
-   #   role_arn          = arn:aws:iam::575261737943:instance-profile/ec2-s3-access-role
-      min_size = 1
+   #  role_arn          = arn:aws:iam::575261737943:instance-profile/ec2-s3-access-role
+   #  role_arn = "${aws_iam_role.ec2-s3_access_role.arn}"
+      min_size = 2
       max_size = 6
+      health_check_grace_period = 300
 tag {
   key = "Name"
-  value = "autoscaling-from-1-to-6"
+  value = "autoscaling-from-2-to-6"
   propagate_at_launch = true
   }
 }
+
+# ---------------------------------------------------------------------------------------------------------------------
+# CREATE CLOUDWATCH ALARM
+# ---------------------------------------------------------------------------------------------------------------------
+resource "aws_autoscaling_policy" "auto-pol" {
+  name                   = "AutoScaling-Policy"
+  scaling_adjustment     = 1
+  adjustment_type        = "ChangeInCapacity"
+  cooldown               = 300
+  autoscaling_group_name = "${aws_autoscaling_group.web-start.name}"
+}
+
+resource "aws_cloudwatch_metric_alarm" "high_cpu_utilization" { 
+    alarm_name = "${var.cluster_name}-high-cpu-utilization" 
+    evaluation_periods = "2"
+    namespace = "AWS/EC2"
+    comparison_operator = "GreaterThanThreshold"
+    period = "300"
+    statistic = "Average"
+    threshold = "90"
+    unit = "Percent"
+    metric_name = "CPUUtilization" 
+    dimensions = {
+        AutoScalingGroupName = "${aws_autoscaling_group.web-start.name}"
+    }
+   alarm_description = "This metric monitors ec2 cpu utilization"
+     alarm_actions     = ["${aws_autoscaling_policy.auto-pol.arn}"]  
+      
+}
+
+
 
